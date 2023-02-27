@@ -2,7 +2,6 @@ import os.path
 import numpy as np
 import matplotlib.pyplot as plt
 import util
-from typing import Counter
 
 def learn_distributions(file_lists_by_category):
     """
@@ -60,7 +59,7 @@ def learn_distributions(file_lists_by_category):
     probabilities_by_category = (spam_distribution, ham_distribution)   
     return probabilities_by_category
 
-def classify_new_email(filename,probabilities_by_category,prior_by_category):
+def classify_new_email(filename, probabilities_by_category, prior_by_category):
     """
     Use Naive Bayes classification to classify the email in the given file.
 
@@ -105,12 +104,12 @@ def classify_new_email(filename,probabilities_by_category,prior_by_category):
 
 if __name__ == '__main__':
     
-    # folder for training and testing 
+    # Folder for training and testing 
     spam_folder = "data/spam"
     ham_folder = "data/ham"
     test_folder = "data/testing"
 
-    # generate the file lists for training
+    # Generate the file lists for training
     file_lists = []
     for folder in (spam_folder, ham_folder):
         file_lists.append(util.get_files_in_folder(folder))
@@ -118,7 +117,7 @@ if __name__ == '__main__':
     # Learn the distributions    
     probabilities_by_category = learn_distributions(file_lists)
     
-    # prior class distribution
+    # Prior class distribution
     priors_by_category = [0.5, 0.5]
     
     # Store the classification results
@@ -136,7 +135,7 @@ if __name__ == '__main__':
     # # Classify emails from testing set and measure the performance
     # for filename in (util.get_files_in_folder(test_folder)):
     #     # Classify
-    #     label,log_posterior = classify_new_email(filename,
+    #     label, log_posterior = classify_new_email(filename,
     #                                              probabilities_by_category,
     #                                              priors_by_category)
         
@@ -149,9 +148,9 @@ if __name__ == '__main__':
     # template="You correctly classified %d out of %d spam emails, and %d out of %d ham emails."
     # # Correct counts are on the diagonal
     # correct = np.diag(performance_measures)
-    # # totals are obtained by summing across guessed labels
+    # # Totals are obtained by summing across guessed labels
     # totals = np.sum(performance_measures, 1)
-    # print(template % (correct[0],totals[0],correct[1],totals[1]))
+    # print(template % (correct[0], totals[0], correct[1], totals[1]))
     
     
     ### TODO: Write your code here to modify the decision rule such that
@@ -168,7 +167,7 @@ if __name__ == '__main__':
         # Classify emails from testing set and measure the performance
         for filename in (util.get_files_in_folder(test_folder)):
             # Classify
-            label,log_posterior = classify_new_email(filename,
+            label, log_posterior = classify_new_email(filename,
                                                         probabilities_by_category,
                                                         priors_by_category)
 
@@ -193,7 +192,7 @@ if __name__ == '__main__':
         # Correct counts are on the diagonal
         correct = np.diag(performance_measures)
         
-        # totals are obtained by summing across guessed labels
+        # Totals are obtained by summing across guessed labels
         totals = np.sum(performance_measures, 1)
         print(template % (ratio, correct[0], totals[0], correct[1], totals[1]))
         type_1.append(totals[0] - correct[0])
