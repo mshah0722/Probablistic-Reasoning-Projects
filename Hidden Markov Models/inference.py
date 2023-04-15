@@ -37,39 +37,34 @@ def forward_backward(all_possible_hidden_states,
     backward_messages = [None] * num_time_steps
     marginals = [None] * num_time_steps 
     
+    for step in range(num_time_steps):
+        forward_messages[step] = rover.Distribution()
+        backward_messages[step] = rover.Distribution()
+        marginals[step] = rover.Distribution()
+    
     # TODO: Compute the forward messages
     # Compute the first forward message (alpha(z0))
-    alpha_z0 = rover.Distribution()
-    
     for z in prior_distribution:
-        alpha_z0[z] = prior_distribution[z] * observation_model(z)[observations[0]]
+        forward_messages[0][z] = prior_distribution[z] * observation_model(z)[observations[0]]
     
-    alpha_z0.renormalize()
-    forward_messages[0] = alpha_z0
+    forward_messages[0].renormalize()
  
     # Using recursion compute the rest of the forward messages
-    for step in range(1, num_time_steps):
-        curr_observation = observations[step]
-        forward_messages[step] = rover.Distribution()
+    for step in range(num_time_steps - 1):
+        curr_observation = observations[step + 1]
         
-        for state in all_possible_hidden_states:
-            forward_messages[step][state] = 0
-            
+        for state in all_possible_hidden_states:            
             if curr_observation == None:
                 prob_obs = 1
             
             else:
                 prob_obs = observation_model(state)[curr_observation]
             
-            for prev_state in all_possible_hidden_states:
-                alpha_zi = forward_messages[step - 1][prev_state]
-                prob_cond = transition_model(prev_state)[state]
-                forward_messages[step][state] = alpha_zi * prob_cond
-            
-            forward_messages[step][state] *= prob_obs
+            curr_sum = sum(forward_messages[step][last_state] * transition_model(last_state)[state] for last_state in forward_messages[step]) 
+            forward_messages[step + 1][state] = prob_obs * curr_sum
         
         # Renormalize
-        forward_messages[step].renormalize()   
+        forward_messages[step + 1].renormalize()   
                    
     # TODO: Compute the backward messages
     # Compute the first backward message (beta(z(n-1)))
@@ -78,34 +73,28 @@ def forward_backward(all_possible_hidden_states,
     for state in all_possible_hidden_states:
         beta_zn1[state] = 1
     
+    beta_zn1.renormalize()
+    
     backward_messages[num_time_steps - 1] = beta_zn1
     
     # Using recursion compute the rest of the backward messages
-    for step in range(num_time_steps - 2, -1, -1):
+    for step in reversed(range(num_time_steps - 1)):
         curr_observation = observations[step + 1]
-        backward_messages[step] = rover.Distribution()
         
         for state in all_possible_hidden_states:
-            backward_messages[step][state] = 0
+            prob_trans = transition_model(state)
             
-            for next_state in all_possible_hidden_states:
-                if curr_observation == None:
-                    prob_obs = 1
+            if curr_observation == None:
+                backward_messages[step][state] = sum(backward_messages[step + 1][next_state] * prob_trans[next_state] for next_state in backward_messages[step + 1])
+            
+            else:
+                backward_messages[step][state] = sum(backward_messages[step + 1][next_state] * prob_trans[next_state] * observation_model(next_state)[curr_observation] for next_state in backward_messages[step + 1])
                 
-                else:
-                    prob_obs = observation_model(next_state)[curr_observation]
-                    
-                beta_zi = backward_messages[step + 1][next_state]
-                prob_cond = transition_model(state)[next_state]
-                backward_messages[step][state] += beta_zi * prob_cond * prob_obs
-        
         # Renormalize
         backward_messages[step].renormalize()
     
     # TODO: Compute the marginals 
-    for step in range(num_time_steps):
-        marginals[step] = rover.Distribution()
-        
+    for step in range(num_time_steps):        
         for state in all_possible_hidden_states:
             alpha_zi = forward_messages[step][state]
             beta_zi = backward_messages[step][state]
@@ -145,7 +134,7 @@ def Viterbi(all_possible_hidden_states,
     
     for state in prior_distribution:
         curr_pd = prior_distribution[state]
-        curr_observation = observations[state]
+        curr_observation = observations[0]
         
         if curr_observation == None:
             prob_obs = 1
@@ -157,50 +146,37 @@ def Viterbi(all_possible_hidden_states,
             w[0][state] = np.log(curr_pd * prob_obs)
     
     # Using recursion compute the rest of the omega values
-    for step in range(1, time_step_count):
-        w[step] = rover.Distribution()
-        max_states[step] = dict()
+    for step in range(time_step_count - 1):
+        w[step + 1] = dict()
+        max_states[step + 1] = dict()
+        curr_observation = observations[step + 1]
         
         for state in all_possible_hidden_states:
             max_w = -float('inf')
             max_state = None
             
-            for prev_state in w[i - 1]:
-                curr_transition = transition_model(prev_state)[state]
-                
-                if curr_transition == 0:
-                    continue              
-                
-                curr_w = w[step - 1][prev_state] + np.log(curr_transition)
-                
-                if curr_w > max_w:
-                    max_w = curr_w
-                    max_state = prev_state
-                
             if curr_observation == None:
                 prob_obs = 1
-            
+        
             else:
                 prob_obs = observation_model(state)[curr_observation]
                 
+            calculation = {last_state:(np.log(transition_model(last_state)[state]) + w[step][last_state]) for last_state in w[step].keys()}
+            max_w = max(calculation.values()) 
+            max_state = max(calculation, key=calculation.get)
+            max_states[step + 1][state] = max_state
+                
             if prob_obs != 0:
-                w[step][state] = max_w + np.log(prob_obs)
-            max_states[step][state] = max_state
+                w[step + 1][state] = max_w + np.log(prob_obs)
+                
+            else:
+                w[step + 1][state] = np.log(prob_obs)
     
-    best_w0 = -float('inf')
-    best_state = None
-    
-    for state in w[time_step_count - 1]:
-        curr_w = w[time_step_count - 1][state]
-        
-        if curr_w > best_w0:
-            best_w0 = curr_w
-            best_state = state
-    
-    estimated_hidden_states[time_step_count - 1] = best_state
+    # Find the best state at the last time step
+    estimated_hidden_states[time_step_count - 1] = max(w[time_step_count - 1], key=w[time_step_count - 1].get)
     
     # Backtracking to find the sequence of max likelihood
-    for step in range(time_step_count - 2, -1, -1):
+    for step in reversed(range(num_time_steps - 1)):
         estimated_hidden_states[step] = max_states[step + 1][estimated_hidden_states[step + 1]]
         
     return estimated_hidden_states
